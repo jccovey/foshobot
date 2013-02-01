@@ -6,6 +6,8 @@ EMAIL = ENV['EMAIL']
 PASSWORD =  ENV['PASS']
 ROOM =  ENV['ROOM']
 
+Process.daemon
+
 def dj_only_if_solo(client)
   if client.room.djs.length == 1
     client.room.become_dj
