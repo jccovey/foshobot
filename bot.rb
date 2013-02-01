@@ -9,9 +9,9 @@ ROOM =  ENV['ROOM']
 Process.daemon
 
 def dj_only_if_solo(client)
-  if client.room.djs.length == 1
+  if client.room.djs.length == 1 and not client.user.dj?
     client.room.become_dj
-  elsif client.room.djs.length > 2 and client.user.dj?
+  elsif client.user.dj?
     client.user.remove_as_dj
   end
 end
@@ -22,11 +22,15 @@ Turntabler.run do
   dj_only_if_solo(client)
 
   client.on :dj_added do |user|
-    dj_only_if_solo(client)
+    unless user == client.user
+      dj_only_if_solo(client)
+    end
   end
 
   client.on :dj_removed do |user|
-    dj_only_if_solo(client)
+    unless user == client.user
+      dj_only_if_solo(client)
+    end
   end
 
   client.on :song_voted do |song|
