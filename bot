@@ -11,7 +11,7 @@ def dj_only_if_solo(client, user = nil)
   unless user == client.user
     if not client.user.dj? and client.room.listeners.length > 1 and client.room.djs.length < client.room.dj_capacity
       client.room.become_dj
-    elsif client.user.dj? and client.room.listeners.length <= 1)
+    elsif client.user.dj? and client.room.listeners.length <= 1
       stop_after_current_song = true
     end
   end
