@@ -1,43 +1,74 @@
 #!/usr/bin/env ruby
 
 require 'turntabler'
-
-EMAIL = ENV['EMAIL']
-PASSWORD =  ENV['PASS']
-ROOM =  ENV['ROOM']
+require 'key'
 
 Process.daemon
 
-def dj_only_if_solo(client)
-  if client.room.djs.length == 1 and not client.user.dj?
-    client.room.become_dj
-  elsif client.user.dj?
-    client.user.remove_as_dj
+stop_after_current_song = false;
+
+def dj_only_if_solo(client, user = nil)
+  unless user == client.user
+    if not client.user.dj? and client.room.listeners.length > 1 and client.room.djs.length < client.room.dj_capacity
+      client.room.become_dj
+    elsif client.user.dj? and client.room.listeners.length <= 1)
+      stop_after_current_song = true
+    end
   end
 end
 
 Turntabler.run do
-  client = Turntabler::Client.new(EMAIL, PASSWORD, :room => ROOM, :reconnect => true, :reconnect_wait => 60)
+  begin
+    client = Turntabler::Client.new(EMAIL, PASSWORD, :room => ROOM, :reconnect => true, :reconnect_wait => 60)
 
-  dj_only_if_solo(client)
+    dj_only_if_solo(client)
 
-  client.on :dj_added do |user|
-    unless user == client.user
-      dj_only_if_solo(client)
+    client.on :user_entered do |user|
+      dj_only_if_solo(client, user)
     end
-  end
 
-  client.on :dj_removed do |user|
-    unless user == client.user
-      dj_only_if_solo(client)
+    client.on :user_left do |user|
+      dj_only_if_solo(client, user)
     end
-  end
 
-  client.on :song_voted do |song|
-    unless song.played_by == client.user
-      if song.up_votes_count > 0
-        song.enqueue :index => -1
+    client.on :dj_added do |user|
+      dj_only_if_solo(client, user)
+    end
+
+    client.on :dj_removed do |user|
+      dj_only_if_solo(client, user)
+    end
+
+    client.on :user_spoke do |message|
+      if message.content =~ /\/break/ and client.room.djs.length == client.room.dj_capacity
+        stop_after_current_song = true
       end
     end
+
+    client.on :song_ended do
+      if stop_after_current_song
+        client.user.remove_as_dj
+        stop_after_current_song = false
+      end
+    end
+
+    client.on :song_voted do |song|
+      unless song.played_by == client.user
+        if ((song.up_votes_count * 1.0) / ([client.room.listeners.length - 1, 1].max * 1.0)) > 0.50
+          song.enqueue :index => -1
+        end
+      end
+    end
+
+    client.on :song_snagged do |snag|
+      unless snag.user == client.user
+          snag.song.enqueue :index => -1
+      end
+    end
+
+  rescue Turntabler::Error => ex
+    # Log to database to display on status page
+  rescue => ex
+    # Swallow for now
   end
 end
